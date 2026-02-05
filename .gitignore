@@ -1,4 +1,23 @@
-.idea
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+dist/
+build/
+
+# Virtual environments
+.venv/
+env/
+venv/
+
+# Project
 dbx-dl.ini
-env
-venv
+export/

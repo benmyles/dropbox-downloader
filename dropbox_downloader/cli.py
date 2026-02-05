@@ -2,11 +2,11 @@
 """Dropbox Downloader
 
 Usage:
-  dbx-dl.py download-recursive [<path>]
-  dbx-dl.py du [<path>]
-  dbx-dl.py ls [<path>]
-  dbx-dl.py (-h | --help)
-  dbx-dl.py --version
+  dbx-dl download-recursive [<path>]
+  dbx-dl du [<path>]
+  dbx-dl ls [<path>]
+  dbx-dl (-h | --help)
+  dbx-dl --version
 
 Options:
   -h --help     Show this screen.
@@ -14,6 +14,7 @@ Options:
 """
 import dropbox
 import dropbox.exceptions
+import os
 import os.path
 
 from docopt import docopt
@@ -30,7 +31,7 @@ class DropboxDownloader:
     """Controlling class for console command."""
 
     def __init__(self):
-        self._base_path = os.path.dirname(os.path.realpath(__file__))
+        self._base_path = os.getcwd()
         ini_settings = self._load_config()
         self._dbx = dropbox.Dropbox(ini_settings.get('main', 'api_key'))
         self._dl_dir = ini_settings.get('main', 'dl_dir')
@@ -89,20 +90,23 @@ class DropboxDownloader:
                 f['id'], max_len_id, f['name'], max_len_name, f['path_lower'], max_len_path_lower))
 
     def _load_config(self) -> ConfigParser:
-        """Load `dbx-dl.ini` config file
+        """Load `dbx-dl.ini` config file from the current working directory.
 
         :return: ConfigParser
         """
-        # By using `allow_no_value=True` we are allowed to
-        # write `--force` instead of `--force=true` below.
         config = ConfigParser(allow_no_value=True)
-        with open('{}/dbx-dl.ini'.format(self._base_path)) as f:
+        config_path = os.path.join(self._base_path, 'dbx-dl.ini')
+        if not os.path.exists(config_path):
+            raise FileNotFoundError(
+                'Config file not found: {}\n'
+                'Make sure you run dbx-dl from the directory containing dbx-dl.ini'.format(config_path))
+        with open(config_path) as f:
             config.read_file(f)
 
         return config
 
 
-if __name__ == '__main__':
+def main():
     arguments = docopt(__doc__, version='Dropbox Downloader')
     dd = DropboxDownloader()
     if arguments['download-recursive']:
@@ -111,3 +115,7 @@ if __name__ == '__main__':
         dd.du(arguments.get('<path>') or '')
     elif arguments.get('ls'):
         dd.ls(arguments.get('<path>') or '')
+
+
+if __name__ == '__main__':
+    main()
