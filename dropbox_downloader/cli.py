@@ -2,7 +2,7 @@
 """Dropbox Downloader
 
 Usage:
-  dbx-dl download-recursive [<path>]
+  dbx-dl download-recursive [--skip-noise] [<path>]
   dbx-dl du [<path>]
   dbx-dl ls [<path>]
   dbx-dl (-h | --help)
@@ -11,6 +11,7 @@ Usage:
 Options:
   -h --help     Show this screen.
   --version     Show version.
+  --skip-noise  Skip build artifacts, .git dirs, and deleted/trashed files.
 """
 import dropbox
 import dropbox.exceptions
@@ -24,22 +25,28 @@ from queue import Queue
 
 from dropbox_downloader.DiskUsage import DiskUsage
 from dropbox_downloader.Downloader import Downloader
+from dropbox_downloader.DownloadLogger import DownloadLogger
 from dropbox_downloader.DownloadWorker import DownloadWorker
+from dropbox_downloader.SkipFilter import SkipFilter
 
 
 class DropboxDownloader:
     """Controlling class for console command."""
 
-    def __init__(self):
+    def __init__(self, *, skip_noise: bool = False):
         self._base_path = os.getcwd()
         ini_settings = self._load_config()
         self._dbx = dropbox.Dropbox(ini_settings.get('main', 'api_key'))
         self._dl_dir = ini_settings.get('main', 'dl_dir')
         self._to_dl = str(ini_settings.get('main', 'to_dl')).split(',') or None
+        self._skip_noise = skip_noise
 
     def dl(self, path: str = ''):
         """Recursively download all files in given path, or entire dropbox if none given"""
-        d = Downloader(self._base_path, self._dbx, self._dl_dir, self._to_dl)
+        skip_filter = SkipFilter(skip_noise=self._skip_noise)
+        logger = DownloadLogger(self._base_path)
+        d = Downloader(self._base_path, self._dbx, self._dl_dir, self._to_dl,
+                       skip_filter=skip_filter, logger=logger)
         queue = Queue()
 
         files_and_folders = d.list_files_and_folders(path)
@@ -54,6 +61,13 @@ class DropboxDownloader:
             worker.start()
 
         for f in files_and_folders.entries:
+            skip, reason = skip_filter.should_skip(f)
+            if skip:
+                entry_path = getattr(f, 'path_lower', '') or f.name
+                print('Skipping {} ({})'.format(entry_path, reason))
+                logger.log_skipped(entry_path, reason)
+                continue
+
             if isinstance(f, FolderMetadata):
                 queue.put(f.path_lower)
             elif isinstance(f, FileMetadata):
@@ -108,7 +122,8 @@ class DropboxDownloader:
 
 def main():
     arguments = docopt(__doc__, version='Dropbox Downloader')
-    dd = DropboxDownloader()
+    skip_noise = arguments.get('--skip-noise', False)
+    dd = DropboxDownloader(skip_noise=skip_noise)
     if arguments['download-recursive']:
         dd.dl(arguments.get('<path>') or '')
     elif arguments.get('du'):
