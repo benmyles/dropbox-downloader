@@ -63,13 +63,13 @@ class DropboxDownloader:
         for f in files_and_folders.entries:
             skip, reason = skip_filter.should_skip(f)
             if skip:
-                entry_path = getattr(f, 'path_lower', '') or f.name
+                entry_path = getattr(f, 'path_display', '') or getattr(f, 'path_lower', '') or f.name
                 print('Skipping {} ({})'.format(entry_path, reason))
                 logger.log_skipped(entry_path, reason)
                 continue
 
             if isinstance(f, FolderMetadata):
-                queue.put(f.path_lower)
+                queue.put(f.path_display or f.path_lower)
             elif isinstance(f, FileMetadata):
                 d.download_file(f)
             else:
@@ -92,16 +92,16 @@ class DropboxDownloader:
         file_list = [{
             'id':         f.id,
             'name':       f.name,
-            'path_lower': f.path_lower
+            'path':       f.path_display or f.path_lower
         } for f in files_and_folders.entries]
 
         # get column sizes for formatting
         max_len_id = max(len(f['id']) for f in file_list)
         max_len_name = max(len(f['name']) for f in file_list)
-        max_len_path_lower = max(len(f['path_lower']) for f in file_list)
+        max_len_path = max(len(f['path']) for f in file_list)
         for f in file_list:
             print('{:>{}} {:>{}} {:>{}}'.format(
-                f['id'], max_len_id, f['name'], max_len_name, f['path_lower'], max_len_path_lower))
+                f['id'], max_len_id, f['name'], max_len_name, f['path'], max_len_path))
 
     def _load_config(self) -> ConfigParser:
         """Load `dbx-dl.ini` config file from the current working directory.

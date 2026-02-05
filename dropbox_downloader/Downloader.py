@@ -23,23 +23,26 @@ class Downloader:
         # check skip filter first
         should_skip, reason = self._skip_filter.should_skip(file)
         if should_skip:
-            print('Skipping ({}): {}'.format(reason, file.path_lower))
-            self._logger.log_skipped(file.path_lower, reason)
+            display_path = file.path_display or file.path_lower
+            print('Skipping ({}): {}'.format(reason, display_path))
+            self._logger.log_skipped(display_path, reason)
             return
 
+        # Use path_display to preserve original casing on the local filesystem
+        display_path = file.path_display or file.path_lower
+        local_path = '{}{}'.format(self._dl_dir, display_path)
+
         # check if file exists
-        path_lower = file.path_lower
-        local_path = '{}{}'.format(self._dl_dir, path_lower)
         if os.path.exists(local_path):
             # check size
             local_size = os.path.getsize(local_path)
             if local_size == file.size:
-                print('File already exists: {}'.format(path_lower))
-                self._logger.log_already_exists(path_lower, local_path)
+                print('File already exists: {}'.format(display_path))
+                self._logger.log_already_exists(display_path, local_path)
                 return
 
-        # dl file
-        md, res = self._dbx.files_download(path_lower)
+        # dl file — use path_lower for the API call (canonical Dropbox path)
+        md, res = self._dbx.files_download(file.path_lower)
         data = res.content
 
         # make sure dir exists
@@ -53,7 +56,7 @@ class Downloader:
             print('Creating file {}'.format(local_path))
             with open(local_path, 'wb') as f:
                 f.write(data)
-            self._logger.log_downloaded(path_lower, local_path)
+            self._logger.log_downloaded(display_path, local_path)
 
     def download_recursive(self, path: str = ''):
         """Download all folders for path recursively
@@ -74,13 +77,14 @@ class Downloader:
             # Check skip filter for every entry
             should_skip, reason = self._skip_filter.should_skip(f)
             if should_skip:
-                entry_path = getattr(f, 'path_lower', '') or f.name
+                entry_path = getattr(f, 'path_display', '') or getattr(f, 'path_lower', '') or f.name
                 print('Skipping ({}): {}'.format(reason, entry_path))
                 self._logger.log_skipped(entry_path, reason)
                 continue
 
             if isinstance(f, FolderMetadata):
-                self.download_recursive(f.path_lower)
+                # Recurse using path_display to preserve casing
+                self.download_recursive(f.path_display or f.path_lower)
             elif isinstance(f, FileMetadata):
                 self.download_file(f)
             elif isinstance(f, DeletedMetadata):

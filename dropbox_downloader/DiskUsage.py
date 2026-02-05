@@ -15,7 +15,7 @@ class DiskUsage:
         files_and_folders = self._dbx.files_list_folder(path)
         for f in files_and_folders.entries:
             if isinstance(f, FolderMetadata):
-                self._du_sum_recursive(f.path_lower)
+                self._du_sum_recursive(f.path_display or f.path_lower)
             elif isinstance(f, FileMetadata):
                 self.size += f.size
             else:
