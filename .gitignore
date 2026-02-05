@@ -21,3 +21,4 @@ venv/
 # Project
 dbx-dl.ini
 export/
+log/
